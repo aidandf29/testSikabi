@@ -296,49 +296,91 @@ def page_gate(df):
 # ----------------------------------------------------------------------------
 # Page: Master Data (CRUD)
 # ----------------------------------------------------------------------------
+def crud_section(sheet, key_col, value_cols, value_step=0.01, value_format="%.4f"):
+    """Generic CRUD block: tabel edit (Update) + form tambah (Create) + hapus (Delete)."""
+    df_ref = st.session_state[f"ref_{sheet}"]
+
+    st.markdown("**Data saat ini** — ubah nilainya langsung, lalu klik Simpan")
+    edited = st.data_editor(
+        df_ref,
+        num_rows="fixed",              # baris tambah/hapus dilakukan lewat form di bawah, bukan lewat tabel ini
+        disabled=[key_col],            # kolom kunci dikunci supaya tidak mismatch dengan data pegawai
+        use_container_width=True,
+        hide_index=True,
+        key=f"editor_{sheet}",
+    )
+    if st.button("💾 Simpan perubahan nilai", key=f"save_{sheet}"):
+        st.session_state[f"ref_{sheet}"] = edited
+        save_to_disk()
+        st.success(f"Nilai pada {sheet} disimpan.")
+        st.rerun()
+
+    add_col, del_col = st.columns(2)
+
+    with add_col:
+        st.markdown("**➕ Tambah baris**")
+        with st.form(f"add_{sheet}", clear_on_submit=True):
+            new_key = st.text_input(key_col, key=f"newkey_{sheet}")
+            new_values = {}
+            for vc in value_cols:
+                new_values[vc] = st.number_input(vc, step=value_step, format=value_format, key=f"newval_{sheet}_{vc}")
+            submitted = st.form_submit_button("Tambah baris")
+            if submitted:
+                if not new_key.strip():
+                    st.error(f"{key_col} tidak boleh kosong.")
+                elif new_key in df_ref[key_col].astype(str).values:
+                    st.error(f"'{new_key}' sudah ada di {key_col}.")
+                else:
+                    new_row = {key_col: new_key, **new_values}
+                    st.session_state[f"ref_{sheet}"] = pd.concat(
+                        [df_ref, pd.DataFrame([new_row])], ignore_index=True
+                    )
+                    save_to_disk()
+                    st.success(f"Baris '{new_key}' ditambahkan.")
+                    st.rerun()
+
+    with del_col:
+        st.markdown("**🗑️ Hapus baris**")
+        to_delete = st.multiselect(
+            f"Pilih {key_col} yang mau dihapus",
+            df_ref[key_col].astype(str).tolist(),
+            key=f"del_{sheet}",
+        )
+        if st.button("Hapus baris terpilih", key=f"delbtn_{sheet}", disabled=len(to_delete) == 0):
+            st.session_state[f"ref_{sheet}"] = df_ref[
+                ~df_ref[key_col].astype(str).isin(to_delete)
+            ].reset_index(drop=True)
+            save_to_disk()
+            st.success(f"{len(to_delete)} baris dihapus.")
+            st.rerun()
+
+
 def page_master():
     st.subheader("Master Data")
-    st.caption("Ubah, tambah, atau hapus baris langsung di tabel. Klik **Simpan Perubahan** untuk menerapkan ke seluruh perhitungan skor.")
+    st.caption(
+        "Tabel referensi yang menentukan bobot & konversi skor. "
+        "Data pegawai TIDAK dikelola di sini — dianggap sumber tetap dari sistem lain."
+    )
 
     tabs = st.tabs([
         "Bobot Quantitative", "Bobot Qualitative", "Bobot per Pangkat",
         "Skor Pendidikan", "Skor Sertifikasi", "Skor K3", "Threshold Administrasi",
     ])
-    sheet_names = [
-        "Quant_Weights", "Qual_Weights", "Rank_Weights",
-        "Education_Score", "Certification_Score", "K3_Score", "Thresholds",
-    ]
 
-    for tab, sheet in zip(tabs, sheet_names):
-        with tab:
-            key = f"editor_{sheet}"
-            edited = st.data_editor(
-                st.session_state[f"ref_{sheet}"],
-                num_rows="dynamic",
-                use_container_width=True,
-                key=key,
-            )
-            colA, colB = st.columns([1, 4])
-            if colA.button("💾 Simpan perubahan", key=f"save_{sheet}"):
-                st.session_state[f"ref_{sheet}"] = edited
-                save_to_disk()
-                st.success(f"Perubahan pada {sheet} disimpan. Skor akan dihitung ulang.")
-                st.rerun()
-
-    st.divider()
-    with st.expander("⚙️ Kelola data pegawai (tambah / edit / hapus)"):
-        edited_emp = st.data_editor(
-            st.session_state.employees,
-            num_rows="dynamic",
-            use_container_width=True,
-            height=400,
-            key="editor_employees",
-        )
-        if st.button("💾 Simpan data pegawai"):
-            st.session_state.employees = edited_emp
-            save_to_disk()
-            st.success("Data pegawai disimpan. Skor akan dihitung ulang.")
-            st.rerun()
+    with tabs[0]:
+        crud_section("Quant_Weights", key_col="Parameter", value_cols=["Value"])
+    with tabs[1]:
+        crud_section("Qual_Weights", key_col="Parameter", value_cols=["Value"])
+    with tabs[2]:
+        crud_section("Rank_Weights", key_col="Pangkat", value_cols=["Quantitative", "Qualitative"])
+    with tabs[3]:
+        crud_section("Education_Score", key_col="Kategori", value_cols=["Nilai"], value_step=1.0, value_format="%.0f")
+    with tabs[4]:
+        crud_section("Certification_Score", key_col="Kategori", value_cols=["Nilai"], value_step=1.0, value_format="%.0f")
+    with tabs[5]:
+        crud_section("K3_Score", key_col="Kategori", value_cols=["Nilai"], value_step=1.0, value_format="%.0f")
+    with tabs[6]:
+        crud_section("Thresholds", key_col="Parameter", value_cols=["Value"])
 
 
 # ----------------------------------------------------------------------------
