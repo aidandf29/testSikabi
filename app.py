@@ -17,7 +17,8 @@ from scoring import ADMIN_CHECK_LABELS, KPP_CHECK_LABELS, compute_all
 
 BASE_DIR = os.path.dirname(__file__)
 DATA_PATH = os.path.join(BASE_DIR, "data", "sikabi_data.xlsx")
-LOGO_PATH = os.path.join(BASE_DIR, "data", "Sikabi.png")
+LOGO_PATH = os.path.join(BASE_DIR, "data", "Sikabi_header.png")
+LOGO_FALLBACK_PATH = os.path.join(BASE_DIR, "data", "Sikabi.png")
 REF_SHEETS = [
     "Quant_Weights", "Qual_Weights", "Rank_Weights",
     "Education_Score", "Certification_Score", "K3_Score", "Thresholds",
@@ -57,43 +58,55 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
-    .stApp {{ background: {BG}; color: {INK}; }}
-    .block-container {{ padding-top: 1.5rem; padding-bottom: 3rem; max-width: 1500px; }}
-    [data-testid="stHeader"] {{ background: rgba(246,248,251,0.92); }}
+    :root {{
+        --sikabi-navy: #123A63; --sikabi-blue: #1677C8; --sikabi-blue-soft: #EAF4FC;
+        --sikabi-border: #DCE3EA; --sikabi-bg: #F6F8FB; --sikabi-surface: #FFFFFF;
+    }}
+    .stApp {{ background: var(--background-color, {BG}); color: var(--text-color, {INK}); }}
+    .block-container {{ padding-top: 1.2rem; padding-bottom: 2.5rem; max-width: 1500px; }}
+    [data-testid="stHeader"] {{ background: var(--background-color, {BG}); }}
     [data-testid="stSidebar"] {{ display: none; }}
     .sikabi-header {{
-        background: linear-gradient(135deg, #FFFFFF 0%, #F7FAFD 100%);
-        border: 1px solid {BORDER}; border-radius: 18px; padding: 18px 24px;
-        margin-bottom: 18px; box-shadow: 0 6px 24px rgba(18,58,99,.05);
+        background: var(--secondary-background-color, #FFFFFF);
+        border: 1px solid var(--sikabi-border); border-radius: 18px; padding: 18px 22px;
+        margin-bottom: 18px; box-shadow: 0 6px 24px rgba(18,58,99,.06);
     }}
-    .eyebrow {{ color: {BLUE}; font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 3px; }}
-    .page-title {{ color: {NAVY}; font-size: 1.55rem; font-weight: 700; margin: 0; }}
-    .page-subtitle {{ color: {SLATE}; font-size: .88rem; margin-top: 4px; }}
-    .section-title {{ color: {NAVY}; font-size: 1.05rem; font-weight: 700; margin: .2rem 0 .65rem; }}
-    .muted {{ color: {SLATE}; font-size: .82rem; }}
-    .metric-card {{ background:{SURFACE}; border:1px solid {BORDER}; border-radius:14px; padding:17px 18px; min-height:112px; box-shadow:0 3px 14px rgba(18,58,99,.035); }}
-    .metric-label {{ color:{SLATE}; font-size:.78rem; font-weight:600; }}
-    .metric-value {{ color:{NAVY}; font-size:1.72rem; font-weight:700; margin-top:7px; }}
-    .metric-note {{ color:#7C8A9A; font-size:.72rem; margin-top:2px; }}
-    .quad-card {{ background:{SURFACE}; border:1px solid {BORDER}; border-radius:14px; padding:16px; height:100%; box-shadow:0 3px 14px rgba(18,58,99,.035); transition:.15s ease; }}
-    .quad-card:hover {{ border-color:#B9CBDC; box-shadow:0 8px 22px rgba(18,58,99,.08); transform:translateY(-1px); }}
+    .header-actions {{ padding-top: 2px; }}
+    .eyebrow {{ color: var(--sikabi-blue); font-size: .70rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 3px; }}
+    .page-title {{ color: var(--text-color, {NAVY}); font-size: 1.52rem; font-weight: 700; margin: 0; }}
+    .page-subtitle {{ color: var(--secondary-text-color, {SLATE}); font-size: .86rem; margin-top: 4px; }}
+    .section-title {{ color: var(--text-color, {NAVY}); font-size: 1.05rem; font-weight: 700; margin: .2rem 0 .65rem; }}
+    .muted {{ color: var(--secondary-text-color, {SLATE}); font-size: .82rem; }}
+    .metric-card {{ background: var(--secondary-background-color, #FFFFFF); border:1px solid var(--sikabi-border); border-radius:14px; padding:17px 18px; min-height:112px; box-shadow:0 3px 14px rgba(18,58,99,.035); }}
+    .metric-label {{ color: var(--secondary-text-color, {SLATE}); font-size:.78rem; font-weight:600; }}
+    .metric-value {{ color: var(--text-color, {NAVY}); font-size:1.72rem; font-weight:700; margin-top:7px; }}
+    .metric-note {{ color: var(--secondary-text-color, #7C8A9A); font-size:.72rem; margin-top:2px; }}
+    .quad-card {{ background: var(--secondary-background-color, #FFFFFF); border:1px solid var(--sikabi-border); border-radius:14px; padding:16px; height:100%; box-shadow:0 3px 14px rgba(18,58,99,.035); transition:.15s ease; }}
+    .quad-card:hover {{ border-color:#7DA8CC; box-shadow:0 8px 22px rgba(18,58,99,.10); transform:translateY(-1px); }}
     .quad-top {{ display:flex; align-items:center; justify-content:space-between; gap:10px; }}
-    .quad-name {{ font-weight:700; color:{NAVY}; font-size:.94rem; }}
-    .quad-count {{ font-size:1.45rem; font-weight:700; color:{INK}; }}
-    .quad-desc {{ color:{SLATE}; font-size:.74rem; line-height:1.45; margin-top:4px; }}
+    .quad-name {{ font-weight:700; color: var(--text-color, {NAVY}); font-size:.94rem; }}
+    .quad-count {{ font-size:1.45rem; font-weight:700; color: var(--text-color, {INK}); }}
+    .quad-desc {{ color: var(--secondary-text-color, {SLATE}); font-size:.74rem; line-height:1.45; margin-top:4px; }}
     .quad-dot {{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:7px; }}
-    .gate-subsection {{ background:{SURFACE}; border:1px solid {BORDER}; border-radius:14px; padding:16px 18px; margin:10px 0 14px; }}
-    .gate-heading {{ color:{NAVY}; font-weight:700; font-size:1rem; margin-bottom:3px; }}
-    div[data-testid="stMetric"] {{ background:{SURFACE}; border:1px solid {BORDER}; padding:14px 16px; border-radius:12px; }}
-    .stButton > button, .stDownloadButton > button {{ border-radius:9px; border:1px solid {BORDER}; background:#fff; color:{NAVY}; font-weight:600; min-height:38px; }}
-    .stButton > button:hover, .stDownloadButton > button:hover {{ border-color:#A8C3DA; color:{BLUE}; background:{BLUE_SOFT}; }}
-    .stButton > button[kind="primary"] {{ background:{NAVY}; border-color:{NAVY}; color:#fff; }}
-    div[data-baseweb="select"] > div {{ border-radius:9px; border-color:{BORDER}; background:#fff; }}
-    div[data-testid="stDataFrame"] {{ border:1px solid {BORDER}; border-radius:12px; overflow:hidden; }}
-    .stTabs [data-baseweb="tab-list"] {{ gap:8px; border-bottom:1px solid {BORDER}; }}
-    .stTabs [data-baseweb="tab"] {{ padding:10px 14px; color:{SLATE}; font-weight:600; }}
-    .stTabs [aria-selected="true"] {{ color:{NAVY}; }}
-    hr {{ border-color:{BORDER}; }}
+    .gate-subsection {{ background: var(--secondary-background-color, #FFFFFF); border:1px solid var(--sikabi-border); border-radius:14px; padding:16px 18px; margin:10px 0 14px; }}
+    .gate-heading {{ color: var(--text-color, {NAVY}); font-weight:700; font-size:1rem; margin-bottom:3px; }}
+    div[data-testid="stMetric"] {{ background: var(--secondary-background-color, #FFFFFF); border:1px solid var(--sikabi-border); padding:14px 16px; border-radius:12px; }}
+    .stButton > button, .stDownloadButton > button {{ border-radius:9px; border:1px solid var(--sikabi-border); background: var(--secondary-background-color, #FFFFFF); color: var(--text-color, {NAVY}); font-weight:600; min-height:38px; }}
+    .stButton > button:hover, .stDownloadButton > button:hover {{ border-color:#7DA8CC; color:var(--sikabi-blue); background:var(--sikabi-blue-soft); }}
+    .stButton > button[kind="primary"] {{ background:var(--sikabi-navy); border-color:var(--sikabi-navy); color:#fff; }}
+    div[data-baseweb="select"] > div {{ border-radius:9px; border-color:var(--sikabi-border); background: var(--secondary-background-color, #FFFFFF); }}
+    div[data-baseweb="select"] [data-baseweb="tag"] {{ background: var(--sikabi-blue); color:#fff; border-radius:7px; }}
+    div[data-baseweb="select"] [data-baseweb="tag"] svg {{ color:#fff; }}
+    div[data-testid="stDataFrame"] {{ border:1px solid var(--sikabi-border); border-radius:12px; overflow:hidden; }}
+    .stTabs [data-baseweb="tab-list"] {{ gap:8px; border-bottom:1px solid var(--sikabi-border); }}
+    .stTabs [data-baseweb="tab"] {{ padding:10px 14px; color:var(--secondary-text-color, {SLATE}); font-weight:600; }}
+    .stTabs [aria-selected="true"] {{ color:var(--sikabi-blue) !important; }}
+    .stTabs [data-baseweb="tab-highlight"] {{ background-color:var(--sikabi-blue) !important; }}
+    hr {{ border-color:var(--sikabi-border); }}
+    @media (prefers-color-scheme: dark) {{
+        .sikabi-header {{ box-shadow:0 6px 24px rgba(0,0,0,.18); }}
+        .stButton > button:hover, .stDownloadButton > button:hover {{ background:rgba(22,119,200,.14); }}
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -160,16 +173,22 @@ PANGKAT_OPTS = sorted(df["Pangkat"].dropna().unique().tolist())
 SATKER_OPTS = sorted(df["Satker"].dropna().unique().tolist())
 STATUS_OPTS = ["Proses KPP", "General Talent"]
 
-# Header: logo aplikasi + identitas produk.
-head_logo, head_text = st.columns([1.15, 3.85], vertical_alignment="center")
-with head_logo:
-    if os.path.exists(LOGO_PATH):
-        st.image(LOGO_PATH, width=260)
-with head_text:
-    st.markdown('<div class="eyebrow">BANK INDONESIA · TALENT INTELLIGENCE</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-title">Sistem Intelijen Karier Bank Indonesia</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Transformasi digital manajemen karier berbasis scoring, decision gate, dan talent mapping.</div>', unsafe_allow_html=True)
-st.markdown("<div style='height:2px'></div>", unsafe_allow_html=True)
+# Header: logo aplikasi + identitas produk + utility actions.
+with st.container(border=True):
+    head_logo, head_text, head_actions = st.columns([1.15, 3.0, 1.85], vertical_alignment="center")
+    with head_logo:
+        if os.path.exists(LOGO_PATH):
+            st.image(LOGO_PATH, width=220)
+        elif os.path.exists(LOGO_FALLBACK_PATH):
+            st.image(LOGO_FALLBACK_PATH, width=220)
+    with head_text:
+        st.markdown('<div class="eyebrow">BANK INDONESIA · TALENT INTELLIGENCE</div>', unsafe_allow_html=True)
+        st.markdown('<div class="page-title">Sistem Intelijen Karier Bank Indonesia</div>', unsafe_allow_html=True)
+        st.markdown('<div class="page-subtitle">Transformasi digital manajemen karier berbasis scoring, decision gate, dan talent mapping.</div>', unsafe_allow_html=True)
+    with head_actions:
+        st.download_button("Unduh data (.xlsx)", data=workbook_bytes(), file_name="sikabi_data.xlsx", use_container_width=True, key="download_master_workbook")
+        st.button("Sinkronisasi HRIS & KATALIS", disabled=True, use_container_width=True, key="sync_hris_katalis")
+        st.caption("Integrasi eksternal belum terhubung.")
 
 # Top navigation — tabs menggantikan radio button/sidebar navigation.
 tab_dashboard, tab_pegawai, tab_gate, tab_master = st.tabs([
@@ -246,10 +265,10 @@ def page_dashboard(data):
             fig.update_layout(
                 height=470,
                 margin=dict(l=20, r=20, t=20, b=20),
-                paper_bgcolor="white", plot_bgcolor="white",
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 legend_title_text="",
-                font=dict(family="Inter", color=INK),
-                xaxis=dict(gridcolor="#EEF2F6"), yaxis=dict(gridcolor="#EEF2F6"),
+                font=dict(family="Inter", color="var(--text-color)"),
+                xaxis=dict(gridcolor="rgba(127,127,127,0.18)"), yaxis=dict(gridcolor="rgba(127,127,127,0.18)"),
             )
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         else:
@@ -470,16 +489,6 @@ def page_master():
     with tabs[6]:
         crud_section("Thresholds", "Parameter", ["Value"])
 
-
-# Bottom utility area, visible regardless of the active top tab.
-st.markdown("<br>", unsafe_allow_html=True)
-st.markdown("---")
-u1, u2 = st.columns([1.25, 3.75], vertical_alignment="center")
-with u1:
-    st.download_button("Unduh data (.xlsx)", data=workbook_bytes(), file_name="sikabi_data.xlsx", use_container_width=True, key="download_master_workbook")
-    st.button("Sinkronisasi data dengan HRIS dan KATALIS", disabled=True, use_container_width=True, key="sync_hris_katalis")
-with u2:
-    st.caption("Sinkronisasi HRIS & KATALIS disiapkan sebagai placeholder integrasi; tombol belum terhubung ke sistem eksternal.")
 
 with tab_dashboard:
     page_dashboard(df)
