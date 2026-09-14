@@ -174,20 +174,41 @@ SATKER_OPTS = sorted(df["Satker"].dropna().unique().tolist())
 STATUS_OPTS = ["Proses KPP", "General Talent"]
 
 # Header: logo aplikasi + identitas produk + utility actions.
+# Gunakan top alignment + spacer kecil pada action area agar tombol tidak ter-clipping
+# oleh container Streamlit.
 with st.container(border=True):
-    head_logo, head_text, head_actions = st.columns([1.15, 3.0, 1.85], vertical_alignment="center")
+    head_logo, head_text, head_actions = st.columns([1.15, 3.0, 1.85], vertical_alignment="top")
+
     with head_logo:
         if os.path.exists(LOGO_PATH):
-            st.image(LOGO_PATH, width=220)
+            st.image(LOGO_PATH, width=210)
         elif os.path.exists(LOGO_FALLBACK_PATH):
-            st.image(LOGO_FALLBACK_PATH, width=220)
+            st.image(LOGO_FALLBACK_PATH, width=210)
+
     with head_text:
+        st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
         st.markdown('<div class="eyebrow">BANK INDONESIA · TALENT INTELLIGENCE</div>', unsafe_allow_html=True)
         st.markdown('<div class="page-title">Sistem Intelijen Karier Bank Indonesia</div>', unsafe_allow_html=True)
         st.markdown('<div class="page-subtitle">Transformasi digital manajemen karier berbasis scoring, decision gate, dan talent mapping.</div>', unsafe_allow_html=True)
+
     with head_actions:
-        st.download_button("Unduh data (.xlsx)", data=workbook_bytes(), file_name="sikabi_data.xlsx", use_container_width=True, key="download_master_workbook")
-        st.button("Sinkronisasi HRIS & KATALIS", disabled=True, use_container_width=True, key="sync_hris_katalis")
+        # Spacer menjaga tombol tetap berada di dalam area header dan tidak menempel
+        # pada border atas container.
+        st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
+        st.download_button(
+            "Unduh data (.xlsx)",
+            data=workbook_bytes(),
+            file_name="sikabi_data.xlsx",
+            use_container_width=True,
+            key="download_master_workbook",
+        )
+        st.markdown('<div style="height:6px"></div>', unsafe_allow_html=True)
+        st.button(
+            "Sinkronisasi HRIS & KATALIS",
+            disabled=True,
+            use_container_width=True,
+            key="sync_hris_katalis",
+        )
         st.caption("Integrasi eksternal belum terhubung.")
 
 # Top navigation — tabs menggantikan radio button/sidebar navigation.
