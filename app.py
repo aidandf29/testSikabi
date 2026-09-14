@@ -13,29 +13,95 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from scoring import (
-    ADMIN_CHECK_LABELS,
-    KPP_CHECK_LABELS,
-    compute_all,
-)
+from scoring import ADMIN_CHECK_LABELS, KPP_CHECK_LABELS, compute_all
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "sikabi_data.xlsx")
+BASE_DIR = os.path.dirname(__file__)
+DATA_PATH = os.path.join(BASE_DIR, "data", "sikabi_data.xlsx")
+LOGO_PATH = os.path.join(BASE_DIR, "data", "Sikabi.png")
 REF_SHEETS = [
     "Quant_Weights", "Qual_Weights", "Rank_Weights",
     "Education_Score", "Certification_Score", "K3_Score", "Thresholds",
 ]
 
-KUADRAN_COLOR = {"I": "#3E7C74", "II": "#7B9E3F", "III": "#C08A2E", "IV": "#B0574A"}
+# Palet utama dibuat lebih restrained: navy BI, blue accent, slate neutrals.
+NAVY = "#123A63"
+BLUE = "#1677C8"
+BLUE_SOFT = "#EAF4FC"
+INK = "#172B4D"
+SLATE = "#5E6C84"
+BORDER = "#DCE3EA"
+SURFACE = "#FFFFFF"
+BG = "#F6F8FB"
+KUADRAN_COLOR = {
+    "I": "#1677C8",
+    "II": "#3B82A0",
+    "III": "#7A8E9E",
+    "IV": "#A1ABB5",
+}
+KUADRAN_INFO = {
+    "I": ("High QScore · High MDP", "QScore > mean KPP dan MDP > mean KPP"),
+    "II": ("High QScore · Low MDP", "QScore > mean KPP dan MDP ≤ mean KPP"),
+    "III": ("Low QScore · High MDP", "QScore ≤ mean KPP dan MDP > mean KPP"),
+    "IV": ("Low QScore · Low MDP", "QScore ≤ mean KPP dan MDP ≤ mean KPP"),
+}
 
-st.set_page_config(page_title="SIKABI", page_icon="🏦", layout="wide")
+st.set_page_config(
+    page_title="SIKABI — Sistem Intelijen Karier",
+    page_icon=LOGO_PATH if os.path.exists(LOGO_PATH) else "S",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+st.markdown(
+    f"""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
+    .stApp {{ background: {BG}; color: {INK}; }}
+    .block-container {{ padding-top: 1.5rem; padding-bottom: 3rem; max-width: 1500px; }}
+    [data-testid="stHeader"] {{ background: rgba(246,248,251,0.92); }}
+    [data-testid="stSidebar"] {{ display: none; }}
+    .sikabi-header {{
+        background: linear-gradient(135deg, #FFFFFF 0%, #F7FAFD 100%);
+        border: 1px solid {BORDER}; border-radius: 18px; padding: 18px 24px;
+        margin-bottom: 18px; box-shadow: 0 6px 24px rgba(18,58,99,.05);
+    }}
+    .eyebrow {{ color: {BLUE}; font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 3px; }}
+    .page-title {{ color: {NAVY}; font-size: 1.55rem; font-weight: 700; margin: 0; }}
+    .page-subtitle {{ color: {SLATE}; font-size: .88rem; margin-top: 4px; }}
+    .section-title {{ color: {NAVY}; font-size: 1.05rem; font-weight: 700; margin: .2rem 0 .65rem; }}
+    .muted {{ color: {SLATE}; font-size: .82rem; }}
+    .metric-card {{ background:{SURFACE}; border:1px solid {BORDER}; border-radius:14px; padding:17px 18px; min-height:112px; box-shadow:0 3px 14px rgba(18,58,99,.035); }}
+    .metric-label {{ color:{SLATE}; font-size:.78rem; font-weight:600; }}
+    .metric-value {{ color:{NAVY}; font-size:1.72rem; font-weight:700; margin-top:7px; }}
+    .metric-note {{ color:#7C8A9A; font-size:.72rem; margin-top:2px; }}
+    .quad-card {{ background:{SURFACE}; border:1px solid {BORDER}; border-radius:14px; padding:16px; height:100%; box-shadow:0 3px 14px rgba(18,58,99,.035); transition:.15s ease; }}
+    .quad-card:hover {{ border-color:#B9CBDC; box-shadow:0 8px 22px rgba(18,58,99,.08); transform:translateY(-1px); }}
+    .quad-top {{ display:flex; align-items:center; justify-content:space-between; gap:10px; }}
+    .quad-name {{ font-weight:700; color:{NAVY}; font-size:.94rem; }}
+    .quad-count {{ font-size:1.45rem; font-weight:700; color:{INK}; }}
+    .quad-desc {{ color:{SLATE}; font-size:.74rem; line-height:1.45; margin-top:4px; }}
+    .quad-dot {{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:7px; }}
+    .gate-subsection {{ background:{SURFACE}; border:1px solid {BORDER}; border-radius:14px; padding:16px 18px; margin:10px 0 14px; }}
+    .gate-heading {{ color:{NAVY}; font-weight:700; font-size:1rem; margin-bottom:3px; }}
+    div[data-testid="stMetric"] {{ background:{SURFACE}; border:1px solid {BORDER}; padding:14px 16px; border-radius:12px; }}
+    .stButton > button, .stDownloadButton > button {{ border-radius:9px; border:1px solid {BORDER}; background:#fff; color:{NAVY}; font-weight:600; min-height:38px; }}
+    .stButton > button:hover, .stDownloadButton > button:hover {{ border-color:#A8C3DA; color:{BLUE}; background:{BLUE_SOFT}; }}
+    .stButton > button[kind="primary"] {{ background:{NAVY}; border-color:{NAVY}; color:#fff; }}
+    div[data-baseweb="select"] > div {{ border-radius:9px; border-color:{BORDER}; background:#fff; }}
+    div[data-testid="stDataFrame"] {{ border:1px solid {BORDER}; border-radius:12px; overflow:hidden; }}
+    .stTabs [data-baseweb="tab-list"] {{ gap:8px; border-bottom:1px solid {BORDER}; }}
+    .stTabs [data-baseweb="tab"] {{ padding:10px 14px; color:{SLATE}; font-weight:600; }}
+    .stTabs [aria-selected="true"] {{ color:{NAVY}; }}
+    hr {{ border-color:{BORDER}; }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
-# ----------------------------------------------------------------------------
-# State & data loading
-# ----------------------------------------------------------------------------
 def load_workbook(path):
-    sheets = pd.read_excel(path, sheet_name=None)
-    return sheets
+    return pd.read_excel(path, sheet_name=None)
 
 
 def init_state():
@@ -56,6 +122,7 @@ def recompute():
 
 
 def save_to_disk():
+    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     with pd.ExcelWriter(DATA_PATH, engine="openpyxl") as writer:
         st.session_state.employees.to_excel(writer, sheet_name="Employees", index=False)
         for name in REF_SHEETS:
@@ -71,163 +138,207 @@ def workbook_bytes():
     return buf.getvalue()
 
 
+def xlsx_bytes(frame):
+    buf = io.BytesIO()
+    frame.to_excel(buf, index=False)
+    return buf.getvalue()
+
+
+def safe_contains(series, query):
+    return series.astype(str).str.contains(query, case=False, na=False, regex=False)
+
+
+def apply_multiselect_filter(frame, column, values):
+    if not values:
+        return frame.iloc[0:0]
+    return frame[frame[column].isin(values)]
+
+
 init_state()
 df = recompute()
-
 PANGKAT_OPTS = sorted(df["Pangkat"].dropna().unique().tolist())
 SATKER_OPTS = sorted(df["Satker"].dropna().unique().tolist())
+STATUS_OPTS = ["Proses KPP", "General Talent"]
+
+# Header: logo aplikasi + identitas produk.
+head_logo, head_text = st.columns([1.15, 3.85], vertical_alignment="center")
+with head_logo:
+    if os.path.exists(LOGO_PATH):
+        st.image(LOGO_PATH, width=260)
+with head_text:
+    st.markdown('<div class="eyebrow">BANK INDONESIA · TALENT INTELLIGENCE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-title">Sistem Intelijen Karier Bank Indonesia</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-subtitle">Transformasi digital manajemen karier berbasis scoring, decision gate, dan talent mapping.</div>', unsafe_allow_html=True)
+st.markdown("<div style='height:2px'></div>", unsafe_allow_html=True)
+
+# Top navigation — tabs menggantikan radio button/sidebar navigation.
+tab_dashboard, tab_pegawai, tab_gate, tab_master = st.tabs([
+    "Dashboard",
+    "Data Pegawai",
+    "Gate Keputusan",
+    "Master Data",
+])
 
 
-# ----------------------------------------------------------------------------
-# Sidebar navigation
-# ----------------------------------------------------------------------------
-with st.sidebar:
-    st.markdown("### 🏦 SIKABI")
-    st.caption("Sistem Intelijen Karier Bank Indonesia")
-    page = st.radio(
-        "Menu",
-        ["Dashboard (Kuadran & Laporan)", "Data Pegawai", "Gate Keputusan", "Master Data"],
-        label_visibility="collapsed",
-    )
-    st.divider()
-    st.caption(f"Total populasi: **{len(df)}** pegawai")
-    st.caption(f"Lolos administrasi: **{int(df['Lolos_Administrasi'].sum())}**")
-    st.caption(f"Proses KPP: **{int(df['Masuk_Proses_KPP'].sum())}**")
-    st.divider()
-    st.download_button(
-        "⬇️ Unduh data (.xlsx)",
-        data=workbook_bytes(),
-        file_name="sikabi_data.xlsx",
-        use_container_width=True,
-    )
+def metric_card(label, value, note=""):
+    return f"""
+    <div class="metric-card">
+        <div class="metric-label">{label}</div>
+        <div class="metric-value">{value}</div>
+        <div class="metric-note">{note}</div>
+    </div>
+    """
 
 
-# ----------------------------------------------------------------------------
-# Page: Dashboard (Kuadran & Laporan)
-# ----------------------------------------------------------------------------
-def page_dashboard(df):
-    st.subheader("Dashboard — Kuadran & Laporan")
+def filter_bar_dashboard():
+    st.markdown('<div class="section-title">Filter analisis</div>', unsafe_allow_html=True)
+    a, b, c = st.columns([1, 1.35, 1.35])
+    with a:
+        fp = st.multiselect("Pangkat", PANGKAT_OPTS, default=PANGKAT_OPTS, key="dash_pangkat")
+    with b:
+        fs = st.multiselect("Satuan kerja", SATKER_OPTS, default=SATKER_OPTS, key="dash_satker")
+    with c:
+        fq = st.multiselect("Kuadran", ["I", "II", "III", "IV"], default=["I", "II", "III", "IV"], key="dash_kuadran")
+    return fp, fs, fq
+
+
+def page_dashboard(data):
+    st.markdown('<div class="sikabi-header"><div class="eyebrow">EXECUTIVE OVERVIEW</div><div class="page-title">Dashboard Kuadran & Laporan</div><div class="page-subtitle">Pemetaan kandidat berdasarkan QScore dan Masa Dinas Pangkat (MDP).</div></div>', unsafe_allow_html=True)
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total populasi", len(df))
-    c2.metric("Lolos administrasi", int(df["Lolos_Administrasi"].sum()))
-    c3.metric("Lolos kriteria KPP", int(df["Lolos_KPP"].sum()))
-    c4.metric("General talent", int((df["Status_Akhir"] == "General Talent").sum()))
+    c1.markdown(metric_card("Total populasi", f"{len(data):,}", "Seluruh data pegawai"), unsafe_allow_html=True)
+    c2.markdown(metric_card("Lolos administrasi", f"{int(data['Lolos_Administrasi'].sum()):,}", "Gate administrasi"), unsafe_allow_html=True)
+    c3.markdown(metric_card("Lolos kriteria KPP", f"{int(data['Lolos_KPP'].sum()):,}", "Gate KPP"), unsafe_allow_html=True)
+    c4.markdown(metric_card("Proses KPP", f"{int(data['Masuk_Proses_KPP'].sum()):,}", "Populasi yang dipetakan"), unsafe_allow_html=True)
 
-    st.divider()
+    st.markdown("<br>", unsafe_allow_html=True)
+    f_pangkat, f_satker, f_kuadran = filter_bar_dashboard()
 
-    fcol1, fcol2, fcol3 = st.columns([1, 1, 2])
-    f_pangkat = fcol1.multiselect("Pangkat", PANGKAT_OPTS, default=PANGKAT_OPTS)
-    f_satker = fcol2.multiselect("Satuan kerja", SATKER_OPTS, default=SATKER_OPTS)
-    f_kuadran = fcol3.multiselect("Kuadran", ["I", "II", "III", "IV"], default=["I", "II", "III", "IV"])
+    kpp_pop = data[data["Masuk_Proses_KPP"]].copy()
+    scoped = apply_multiselect_filter(kpp_pop, "Pangkat", f_pangkat)
+    scoped = apply_multiselect_filter(scoped, "Satker", f_satker)
+    visible = apply_multiselect_filter(scoped, "Kuadran", f_kuadran)
 
-    kpp_pop = df[df["Masuk_Proses_KPP"]]
-    scoped = kpp_pop[kpp_pop["Pangkat"].isin(f_pangkat) & kpp_pop["Satker"].isin(f_satker)]
-    visible = scoped[scoped["Kuadran"].isin(f_kuadran)]
+    mean_q = float(kpp_pop["Mean_QScore_Populasi_KPP"].dropna().iloc[0]) if len(kpp_pop) else None
+    mean_mdp = float(kpp_pop["Mean_MDP_Populasi_KPP"].dropna().iloc[0]) if len(kpp_pop) else None
 
-    left, right = st.columns([3, 2])
+    left, right = st.columns([1.8, 1], gap="large")
     with left:
-        st.markdown(f"**Peta Kuadran** — {len(visible)} dari {len(kpp_pop)} pegawai Proses KPP")
-        if len(visible) > 0:
+        st.markdown('<div class="section-title">Peta kuadran</div>', unsafe_allow_html=True)
+        st.caption(f"{len(visible):,} pegawai terlihat · {len(kpp_pop):,} pegawai Proses KPP · garis referensi menggunakan mean populasi KPP")
+        if len(visible):
             fig = px.scatter(
                 visible,
                 x="MDP_Tahun", y="QScore", color="Kuadran",
                 color_discrete_map=KUADRAN_COLOR,
-                hover_data=["Nama", "Satker", "Pangkat", "Sublevel"],
+                hover_name="Nama",
+                hover_data={
+                    "Satker": True, "Pangkat": True, "Sublevel": True,
+                    "QScore": ":.1f", "MDP_Tahun": ":.2f", "Kuadran": True,
+                },
                 labels={"MDP_Tahun": "Masa Dinas Pangkat (tahun)", "QScore": "QScore"},
             )
-            mean_q = scoped["QScore"].mean()
-            mean_m = scoped["MDP_Tahun"].mean()
-            fig.add_hline(y=mean_q, line_dash="dash", line_color="gray")
-            fig.add_vline(x=mean_m, line_dash="dash", line_color="gray")
-            fig.update_layout(height=420, legend_title_text="Kuadran")
-            st.plotly_chart(fig, use_container_width=True)
+            if mean_q is not None:
+                fig.add_hline(y=mean_q, line_dash="dash", line_color="#7A8795", annotation_text=f"Mean QScore KPP {mean_q:.1f}", annotation_position="top left")
+            if mean_mdp is not None:
+                fig.add_vline(x=mean_mdp, line_dash="dash", line_color="#7A8795", annotation_text=f"Mean MDP KPP {mean_mdp:.1f}", annotation_position="top right")
+            fig.update_traces(marker=dict(size=9, line=dict(width=0.7, color="white")), opacity=0.86)
+            fig.update_layout(
+                height=470,
+                margin=dict(l=20, r=20, t=20, b=20),
+                paper_bgcolor="white", plot_bgcolor="white",
+                legend_title_text="",
+                font=dict(family="Inter", color=INK),
+                xaxis=dict(gridcolor="#EEF2F6"), yaxis=dict(gridcolor="#EEF2F6"),
+            )
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         else:
             st.info("Tidak ada data pada kombinasi filter ini.")
 
     with right:
-        st.markdown("**Ringkasan per kuadran**")
+        st.markdown('<div class="section-title">Ringkasan kuadran</div>', unsafe_allow_html=True)
+        st.caption("Arahkan kursor ke kartu untuk melihat nama pegawai. Tombol unduh mengikuti filter pangkat & satker yang aktif.")
         for k in ["I", "II", "III", "IV"]:
-            count = scoped[scoped["Kuadran"] == k].shape[0]
+            qdf = scoped[scoped["Kuadran"] == k].copy()
+            names = qdf["Nama"].astype(str).tolist()
+            tooltip = "\n".join(names) if names else "Tidak ada pegawai"
+            title, desc = KUADRAN_INFO[k]
+            opacity = 1 if k in f_kuadran else 0.42
+            col = KUADRAN_COLOR[k]
             st.markdown(
-                f"<div style='display:flex;justify-content:space-between;padding:8px 12px;"
-                f"border:1px solid #E4E7EA;border-radius:8px;margin-bottom:6px;"
-                f"opacity:{1 if k in f_kuadran else 0.4}'>"
-                f"<span><span style='color:{KUADRAN_COLOR[k]}'>⬤</span> Kuadran {k}</span>"
-                f"<b>{count}</b></div>",
+                f"""
+                <div class="quad-card" title="{tooltip}" style="opacity:{opacity}; border-left:4px solid {col}; margin-bottom:10px;">
+                    <div class="quad-top">
+                        <div><span class="quad-dot" style="background:{col}"></span><span class="quad-name">Kuadran {k}</span></div>
+                        <div class="quad-count">{len(qdf)}</div>
+                    </div>
+                    <div class="quad-desc"><b>{title}</b><br>{desc}</div>
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
+            st.download_button(
+                f"Unduh Kuadran {k}",
+                data=xlsx_bytes(qdf[["NIP", "Nama", "Satker", "Pangkat", "Sublevel", "QScore", "MDP_Tahun", "Kuadran", "Readiness"]]) if len(qdf) else b"",
+                file_name=f"sikabi_kuadran_{k}.xlsx",
+                disabled=not len(qdf),
+                use_container_width=True,
+                key=f"download_q_{k}",
+            )
 
-    st.divider()
-    st.markdown(f"**Daftar prioritas promosi** ({len(visible)} pegawai)")
-    show_cols = ["Nama", "Satker", "Pangkat", "Sublevel", "QScore", "MDP_Tahun", "Kuadran", "Readiness"]
-    sorted_visible = visible[show_cols].sort_values("QScore", ascending=False)
-    st.dataframe(sorted_visible, use_container_width=True, hide_index=True, height=320)
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Daftar prioritas promosi</div>', unsafe_allow_html=True)
+    show_cols = ["NIP", "Nama", "Satker", "Pangkat", "Sublevel", "QScore", "MDP_Tahun", "Kuadran", "Readiness"]
+    sorted_visible = visible[show_cols].sort_values(["Kuadran", "QScore"], ascending=[True, False])
+    st.dataframe(sorted_visible, use_container_width=True, hide_index=True, height=340)
+    st.download_button(
+        "Unduh laporan terfilter (.xlsx)",
+        data=xlsx_bytes(sorted_visible),
+        file_name="sikabi_laporan_kuadran_terfilter.xlsx",
+        use_container_width=False,
+        key="download_filtered_report",
+    )
 
-    buf = io.BytesIO()
-    sorted_visible.to_excel(buf, index=False)
-    st.download_button("⬇️ Export laporan (.xlsx)", data=buf.getvalue(), file_name="laporan_kuadran.xlsx")
 
+def page_pegawai(data):
+    st.markdown('<div class="sikabi-header"><div class="eyebrow">EMPLOYEE INTELLIGENCE</div><div class="page-title">Data Pegawai</div><div class="page-subtitle">Eksplorasi data pegawai dan rincian pembentukan skor secara transparan.</div></div>', unsafe_allow_html=True)
 
-# ----------------------------------------------------------------------------
-# Page: Data Pegawai (+ scoring breakdown, merged)
-# ----------------------------------------------------------------------------
-def page_pegawai(df):
-    st.subheader("Data Pegawai & Rincian Penilaian")
-    st.caption("Setiap kolom skor di tabel ini bisa ditelusuri dari kolom mentah di sebelah kanannya — supaya transparan.")
+    a, b, c, d = st.columns([2, 1.15, 1.45, 1.25])
+    q = a.text_input("Cari NIP / nama", placeholder="Ketik NIP atau nama...")
+    fp = b.multiselect("Pangkat", PANGKAT_OPTS, default=PANGKAT_OPTS, key="emp_pangkat")
+    fs = c.multiselect("Satuan kerja", SATKER_OPTS, default=SATKER_OPTS, key="emp_satker")
+    fst = d.multiselect("Status akhir", STATUS_OPTS, default=STATUS_OPTS, key="emp_status")
 
-    fcol1, fcol2, fcol3, fcol4 = st.columns([2, 1, 1, 1])
-    q = fcol1.text_input("Cari NIP / nama")
-    f_pangkat = fcol2.selectbox("Pangkat", ["Semua"] + PANGKAT_OPTS)
-    f_satker = fcol3.selectbox("Satuan kerja", ["Semua"] + SATKER_OPTS)
-    f_status = fcol4.selectbox("Status akhir", ["Semua", "Proses KPP", "General Talent"])
-
-    view = df.copy()
+    view = data.copy()
     if q:
-        view = view[view["Nama"].str.contains(q, case=False) | view["NIP"].astype(str).str.contains(q)]
-    if f_pangkat != "Semua":
-        view = view[view["Pangkat"] == f_pangkat]
-    if f_satker != "Semua":
-        view = view[view["Satker"] == f_satker]
-    if f_status != "Semua":
-        view = view[view["Status_Akhir"] == f_status]
+        view = view[safe_contains(view["Nama"], q) | safe_contains(view["NIP"], q)]
+    view = apply_multiselect_filter(view, "Pangkat", fp)
+    view = apply_multiselect_filter(view, "Satker", fs)
+    view = apply_multiselect_filter(view, "Status_Akhir", fst)
 
-    tab_ringkas, tab_lengkap = st.tabs(["Tampilan ringkas", "Tampilan lengkap (semua kolom skor)"])
+    st.caption(f"Menampilkan {len(view):,} dari {len(data):,} pegawai")
+    tab_ringkas, tab_lengkap = st.tabs(["Ringkas", "Lengkap"])
 
-    ringkas_cols = [
-        "NIP", "Nama", "Satker", "Pangkat", "Sublevel",
-        "Quantitative_Score", "Qualitative_Score", "QScore", "Status_Akhir", "Kuadran",
-    ]
+    ringkas_cols = ["NIP", "Nama", "Satker", "Pangkat", "Sublevel", "Quantitative_Score", "Qualitative_Score", "QScore", "Status_Akhir", "Kuadran"]
     lengkap_cols = ringkas_cols[:5] + [
         "NK_1", "NK_2", "NK_3", "NK_4", "NK_5", "NK_Mean", "Skor_NK",
-        "MDG_Tahun", "Skor_MDP",
-        "Pendidikan", "Skor_Pendidikan",
-        "Sertifikasi", "Skor_Sertifikasi",
-        "Quantitative_Score",
-        "Exposure", "Potensi", "K3", "Skor_K3",
-        "Qualitative_Score", "QScore", "Status_Akhir", "Kuadran",
+        "MDG_Tahun", "MDP_Tahun", "Skor_MDP", "Pendidikan", "Skor_Pendidikan",
+        "Sertifikasi", "Skor_Sertifikasi", "Quantitative_Score", "Exposure", "Potensi",
+        "K3", "Skor_K3", "Qualitative_Score", "QScore", "Status_Akhir", "Kuadran",
     ]
-
     with tab_ringkas:
-        st.dataframe(
-            view[ringkas_cols].sort_values("QScore", ascending=False),
-            use_container_width=True, hide_index=True, height=420,
-        )
+        st.dataframe(view[ringkas_cols].sort_values("QScore", ascending=False), use_container_width=True, hide_index=True, height=430)
     with tab_lengkap:
-        st.dataframe(
-            view[lengkap_cols].sort_values("QScore", ascending=False),
-            use_container_width=True, hide_index=True, height=420,
-        )
+        st.dataframe(view[lengkap_cols].sort_values("QScore", ascending=False), use_container_width=True, hide_index=True, height=430)
 
-    st.caption(f"Menampilkan {len(view)} dari {len(df)} pegawai")
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Detail & breakdown skor</div>', unsafe_allow_html=True)
+    if len(view):
+        pilihan = view.copy()
+        pilihan["_label"] = pilihan["NIP"].astype(str) + " — " + pilihan["Nama"]
+        label = st.selectbox("Pilih pegawai", pilihan["_label"].tolist(), key="employee_detail")
+        row = pilihan[pilihan["_label"] == label].iloc[0]
 
-    st.divider()
-    st.markdown("#### Detail & breakdown skor per pegawai")
-    view = view.copy()
-    view["_label"] = view["NIP"].astype(str) + " — " + view["Nama"]
-    label_pilihan = st.selectbox("Pilih pegawai", view["_label"].tolist() if len(view) else [])
-    if label_pilihan:
-        row = view[view["_label"] == label_pilihan].iloc[0]
         d1, d2, d3 = st.columns(3)
         with d1:
             st.markdown("**Data dasar**")
@@ -237,90 +348,80 @@ def page_pegawai(df):
             st.write(f"Masa dinas grade: {row['MDG_Tahun']} tahun")
             st.write(f"Sisa masa dinas: {row['Remaining_Service']} tahun")
         with d2:
-            st.markdown("**Komponen Quantitative** (bobot pangkat berlaku)")
+            st.markdown("**Quantitative**")
             st.write(f"NK rata-rata 5 th: {row['NK_Mean']} → skor {row['Skor_NK']}")
             st.write(f"MDP: {row['MDP_Tahun']} th → skor {row['Skor_MDP']}")
             st.write(f"Pendidikan: {row['Pendidikan']} → skor {row['Skor_Pendidikan']}")
             st.write(f"Sertifikasi: {row['Sertifikasi']} → skor {row['Skor_Sertifikasi']}")
             st.write(f"**Quantitative Score: {row['Quantitative_Score']}**")
         with d3:
-            st.markdown("**Komponen Qualitative**")
+            st.markdown("**Qualitative**")
             st.write(f"Exposure: {row['Exposure']}")
             st.write(f"Potensi: {row['Potensi']}")
             st.write(f"K3: {row['K3']} → skor {row['Skor_K3']}")
             st.write(f"**Qualitative Score: {row['Qualitative_Score']}**")
             st.write(f"**QScore final: {row['QScore']}**")
 
-        badge_admin = "✅ Lolos" if row["Lolos_Administrasi"] else "❌ Tidak lolos"
-        badge_kpp = "✅ Lolos" if row["Lolos_KPP"] else "❌ Tidak lolos"
-        st.info(f"Gate Administrasi: {badge_admin} · Gate KPP: {badge_kpp} · Status akhir: **{row['Status_Akhir']}**" + (f" · Kuadran **{row['Kuadran']}**" if row["Kuadran"] else ""))
+        st.info(
+            f"Gate Administrasi: {'Lolos' if row['Lolos_Administrasi'] else 'Tidak lolos'} · "
+            f"Gate KPP: {'Lolos' if row['Lolos_KPP'] else 'Tidak lolos'} · "
+            f"Status akhir: **{row['Status_Akhir']}**" +
+            (f" · Kuadran **{row['Kuadran']}**" if row['Kuadran'] else "")
+        )
+    else:
+        st.info("Tidak ada pegawai yang sesuai dengan filter.")
 
 
-# ----------------------------------------------------------------------------
-# Page: Gate Keputusan
-# ----------------------------------------------------------------------------
-def page_gate(df):
-    st.subheader("Gate Keputusan BI Wide")
+def page_gate(data):
+    st.markdown('<div class="sikabi-header"><div class="eyebrow">DECISION GATE</div><div class="page-title">Gate Keputusan</div><div class="page-subtitle">Tahapan penyaringan kandidat sebelum masuk proses KPP.</div></div>', unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["1. Syarat Administrasi", "2. Kriteria KPP", "3. Grade Senior / MDG"])
+    a, b, c = st.columns([1.2, 1.2, 2])
+    fp = a.multiselect("Pangkat", PANGKAT_OPTS, default=PANGKAT_OPTS, key="gate_pangkat")
+    fs = b.multiselect("Status akhir", STATUS_OPTS, default=STATUS_OPTS, key="gate_status")
+    st.caption("Filter berlaku ke seluruh sub-section gate.")
 
-    fcol1, fcol2 = st.columns(2)
-    f_pangkat = fcol1.selectbox("Filter pangkat", ["Semua"] + PANGKAT_OPTS, key="gate_pangkat")
-    f_status = fcol2.selectbox("Filter status akhir", ["Semua", "Proses KPP", "General Talent"], key="gate_status")
+    view = apply_multiselect_filter(data.copy(), "Pangkat", fp)
+    view = apply_multiselect_filter(view, "Status_Akhir", fs)
 
-    view = df.copy()
-    if f_pangkat != "Semua":
-        view = view[view["Pangkat"] == f_pangkat]
-    if f_status != "Semua":
-        view = view[view["Status_Akhir"] == f_status]
+    # Sub-section tanpa nomor, sesuai permintaan.
+    st.markdown('<div class="gate-subsection"><div class="gate-heading">Syarat Administrasi</div><div class="muted">Penyaringan persyaratan dasar sebelum evaluasi KPP.</div></div>', unsafe_allow_html=True)
+    cols = ["Nama", "Pangkat"] + list(ADMIN_CHECK_LABELS.keys()) + ["Lolos_Administrasi"]
+    show = view[cols].rename(columns={**ADMIN_CHECK_LABELS, "Lolos_Administrasi": "LOLOS ADMINISTRASI"})
+    st.dataframe(show, use_container_width=True, hide_index=True, height=300)
 
-    with tab1:
-        cols = ["Nama", "Pangkat"] + list(ADMIN_CHECK_LABELS.keys()) + ["Lolos_Administrasi"]
-        show = view[cols].rename(columns={**ADMIN_CHECK_LABELS, "Lolos_Administrasi": "LOLOS ADMINISTRASI"})
-        st.dataframe(show, use_container_width=True, hide_index=True, height=420)
+    st.markdown('<div class="gate-subsection"><div class="gate-heading">Kriteria KPP</div><div class="muted">Pembanding quantitative, qualitative, dan QScore terhadap passing grade per pangkat.</div></div>', unsafe_allow_html=True)
+    cols = ["Nama", "Pangkat", "Passing_Grade_QScore", "QScore"] + list(KPP_CHECK_LABELS.keys()) + ["Lolos_KPP"]
+    show = view[cols].rename(columns={**KPP_CHECK_LABELS, "Lolos_KPP": "LOLOS KPP"})
+    st.dataframe(show, use_container_width=True, hide_index=True, height=300)
 
-    with tab2:
-        cols = ["Nama", "Pangkat", "Passing_Grade_QScore", "QScore"] + list(KPP_CHECK_LABELS.keys()) + ["Lolos_KPP"]
-        show = view[cols].rename(columns={**KPP_CHECK_LABELS, "Lolos_KPP": "LOLOS KPP"})
-        st.dataframe(show, use_container_width=True, hide_index=True, height=420)
-
-    with tab3:
-        cols = ["Nama", "Pangkat", "Sublevel", "Is_Senior", "MDG_Tahun", "Chk_MDG_Terpenuhi", "Status_Akhir"]
-        show = view[cols].rename(columns={
-            "Is_Senior": "Grade Senior?",
-            "Chk_MDG_Terpenuhi": "MDG Terpenuhi?",
-        })
-        st.dataframe(show, use_container_width=True, hide_index=True, height=420)
+    st.markdown('<div class="gate-subsection"><div class="gate-heading">Syarat KPP Grade Senior / MDG</div><div class="muted">Routing akhir berdasarkan status Senior atau terpenuhinya threshold MDG.</div></div>', unsafe_allow_html=True)
+    cols = ["Nama", "Pangkat", "Sublevel", "Is_Senior", "MDG_Tahun", "Chk_MDG_Terpenuhi", "Status_Akhir"]
+    show = view[cols].rename(columns={"Is_Senior": "Grade Senior?", "Chk_MDG_Terpenuhi": "MDG Terpenuhi?"})
+    st.dataframe(show, use_container_width=True, hide_index=True, height=300)
 
 
-# ----------------------------------------------------------------------------
-# Page: Master Data (CRUD)
-# ----------------------------------------------------------------------------
 def crud_section(sheet, key_col, value_cols, value_step=0.01, value_format="%.4f"):
-    """Generic CRUD block: tabel edit (Update) + form tambah (Create) + hapus (Delete)."""
     df_ref = st.session_state[f"ref_{sheet}"]
-
-    st.markdown("**Data saat ini** — ubah nilainya langsung, lalu klik Simpan")
+    st.markdown(f"**{sheet}**")
     edited = st.data_editor(
         df_ref,
-        num_rows="fixed",              # baris tambah/hapus dilakukan lewat form di bawah, bukan lewat tabel ini
-        disabled=[key_col],            # kolom kunci dikunci supaya tidak mismatch dengan data pegawai
+        num_rows="fixed",
+        disabled=[key_col],
         use_container_width=True,
         hide_index=True,
         key=f"editor_{sheet}",
     )
-    if st.button("💾 Simpan perubahan nilai", key=f"save_{sheet}"):
+    if st.button("Simpan perubahan", key=f"save_{sheet}"):
         st.session_state[f"ref_{sheet}"] = edited
         save_to_disk()
-        st.success(f"Nilai pada {sheet} disimpan.")
+        st.success(f"Perubahan {sheet} disimpan.")
         st.rerun()
 
-    add_col, del_col = st.columns(2)
-
+    add_col, del_col = st.columns(2, gap="large")
     with add_col:
-        st.markdown("**➕ Tambah baris**")
+        st.markdown("**Tambah baris**")
         with st.form(f"add_{sheet}", clear_on_submit=True):
-            new_key = st.text_input(key_col, key=f"newkey_{sheet}")
+            new_key = st.text_input(key_col)
             new_values = {}
             for vc in value_cols:
                 new_values[vc] = st.number_input(vc, step=value_step, format=value_format, key=f"newval_{sheet}_{vc}")
@@ -332,65 +433,59 @@ def crud_section(sheet, key_col, value_cols, value_step=0.01, value_format="%.4f
                     st.error(f"'{new_key}' sudah ada di {key_col}.")
                 else:
                     new_row = {key_col: new_key, **new_values}
-                    st.session_state[f"ref_{sheet}"] = pd.concat(
-                        [df_ref, pd.DataFrame([new_row])], ignore_index=True
-                    )
+                    st.session_state[f"ref_{sheet}"] = pd.concat([df_ref, pd.DataFrame([new_row])], ignore_index=True)
                     save_to_disk()
                     st.success(f"Baris '{new_key}' ditambahkan.")
                     st.rerun()
 
     with del_col:
-        st.markdown("**🗑️ Hapus baris**")
-        to_delete = st.multiselect(
-            f"Pilih {key_col} yang mau dihapus",
-            df_ref[key_col].astype(str).tolist(),
-            key=f"del_{sheet}",
-        )
+        st.markdown("**Hapus baris**")
+        to_delete = st.multiselect(f"Pilih {key_col} yang mau dihapus", df_ref[key_col].astype(str).tolist(), key=f"del_{sheet}")
         if st.button("Hapus baris terpilih", key=f"delbtn_{sheet}", disabled=len(to_delete) == 0):
-            st.session_state[f"ref_{sheet}"] = df_ref[
-                ~df_ref[key_col].astype(str).isin(to_delete)
-            ].reset_index(drop=True)
+            st.session_state[f"ref_{sheet}"] = df_ref[~df_ref[key_col].astype(str).isin(to_delete)].reset_index(drop=True)
             save_to_disk()
             st.success(f"{len(to_delete)} baris dihapus.")
             st.rerun()
 
 
 def page_master():
-    st.subheader("Master Data")
-    st.caption(
-        "Tabel referensi yang menentukan bobot & konversi skor. "
-        "Data pegawai TIDAK dikelola di sini — dianggap sumber tetap dari sistem lain."
-    )
-
+    st.markdown('<div class="sikabi-header"><div class="eyebrow">CONFIGURATION</div><div class="page-title">Master Data</div><div class="page-subtitle">Bobot dan tabel referensi yang digunakan mesin scoring.</div></div>', unsafe_allow_html=True)
+    st.caption("Perubahan pada master data langsung memengaruhi hasil scoring dan gate setelah disimpan.")
     tabs = st.tabs([
         "Bobot Quantitative", "Bobot Qualitative", "Bobot per Pangkat",
-        "Skor Pendidikan", "Skor Sertifikasi", "Skor K3", "Threshold Administrasi",
+        "Skor Pendidikan", "Skor Sertifikasi", "Skor K3", "Threshold",
     ])
-
     with tabs[0]:
-        crud_section("Quant_Weights", key_col="Parameter", value_cols=["Value"])
+        crud_section("Quant_Weights", "Parameter", ["Value"])
     with tabs[1]:
-        crud_section("Qual_Weights", key_col="Parameter", value_cols=["Value"])
+        crud_section("Qual_Weights", "Parameter", ["Value"])
     with tabs[2]:
-        crud_section("Rank_Weights", key_col="Pangkat", value_cols=["Quantitative", "Qualitative"])
+        crud_section("Rank_Weights", "Pangkat", ["Quantitative", "Qualitative"])
     with tabs[3]:
-        crud_section("Education_Score", key_col="Kategori", value_cols=["Nilai"], value_step=1.0, value_format="%.0f")
+        crud_section("Education_Score", "Kategori", ["Nilai"], value_step=1.0, value_format="%.0f")
     with tabs[4]:
-        crud_section("Certification_Score", key_col="Kategori", value_cols=["Nilai"], value_step=1.0, value_format="%.0f")
+        crud_section("Certification_Score", "Kategori", ["Nilai"], value_step=1.0, value_format="%.0f")
     with tabs[5]:
-        crud_section("K3_Score", key_col="Kategori", value_cols=["Nilai"], value_step=1.0, value_format="%.0f")
+        crud_section("K3_Score", "Kategori", ["Nilai"], value_step=1.0, value_format="%.0f")
     with tabs[6]:
-        crud_section("Thresholds", key_col="Parameter", value_cols=["Value"])
+        crud_section("Thresholds", "Parameter", ["Value"])
 
 
-# ----------------------------------------------------------------------------
-# Router
-# ----------------------------------------------------------------------------
-if page == "Dashboard (Kuadran & Laporan)":
+# Bottom utility area, visible regardless of the active top tab.
+st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("---")
+u1, u2 = st.columns([1.25, 3.75], vertical_alignment="center")
+with u1:
+    st.download_button("Unduh data (.xlsx)", data=workbook_bytes(), file_name="sikabi_data.xlsx", use_container_width=True, key="download_master_workbook")
+    st.button("Sinkronisasi data dengan HRIS dan KATALIS", disabled=True, use_container_width=True, key="sync_hris_katalis")
+with u2:
+    st.caption("Sinkronisasi HRIS & KATALIS disiapkan sebagai placeholder integrasi; tombol belum terhubung ke sistem eksternal.")
+
+with tab_dashboard:
     page_dashboard(df)
-elif page == "Data Pegawai":
+with tab_pegawai:
     page_pegawai(df)
-elif page == "Gate Keputusan":
+with tab_gate:
     page_gate(df)
-elif page == "Master Data":
+with tab_master:
     page_master()
