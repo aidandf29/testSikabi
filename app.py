@@ -63,8 +63,8 @@ st.markdown(
         --sikabi-border: #DCE3EA; --sikabi-bg: #F6F8FB; --sikabi-surface: #FFFFFF;
     }}
     .stApp {{ background: var(--background-color, {BG}); color: var(--text-color, {INK}); }}
-    .block-container {{ padding-top: 1.2rem; padding-bottom: 2.5rem; max-width: 1500px; }}
-    [data-testid="stHeader"] {{ background: var(--background-color, {BG}); }}
+    .block-container {{ padding-top: 5.2rem; padding-bottom: 2.5rem; max-width: 1500px; }}
+    [data-testid="stHeader"] {{ background: var(--background-color, {BG}); z-index: 1000; }}
     [data-testid="stSidebar"] {{ display: none; }}
     .sikabi-header {{
         background: var(--secondary-background-color, #FFFFFF);
