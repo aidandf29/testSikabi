@@ -1,10 +1,7 @@
 """
-SIKABI - Scoring Engine
+SIKABI — Scoring Engine
 
-Modul ini murni fungsi (tanpa Streamlit) supaya mudah ditest terpisah.
-Semua perhitungan skor & gate keputusan mengikuti dokumen System Requirements
-SIKABI: Quantitative Score, Qualitative Score, QScore, Gate Administrasi,
-Gate Kriteria KPP, Grade Senior/MDG, dan Kuadran.
+Modul murni Python untuk seluruh perhitungan skor, gate keputusan, dan kuadran.
 """
 
 from datetime import datetime
@@ -22,7 +19,7 @@ def years_since(date_val, ref=TODAY):
 
 
 def zscore_band(value, mean, std):
-    """Mengembalikan skor 100/60/20 berdasarkan posisi value terhadap mean +/- 1 stdev."""
+    """Skor 100/60/20 berdasarkan posisi value terhadap mean +/- 1 stdev."""
     if std == 0 or pd.isna(std):
         return 60
     if value > mean + std:
@@ -33,20 +30,11 @@ def zscore_band(value, mean, std):
 
 
 def load_reference_tables(xls_path_or_buffer):
-    """Membaca semua sheet referensi dari file Excel menjadi dict of DataFrame."""
-    sheets = pd.read_excel(xls_path_or_buffer, sheet_name=None)
-    return sheets
+    return pd.read_excel(xls_path_or_buffer, sheet_name=None)
 
 
 def compute_all(employees: pd.DataFrame, refs: dict) -> pd.DataFrame:
-    """
-    Input:
-      employees : DataFrame mentah dari sheet Employees
-      refs      : dict berisi DataFrame Quant_Weights, Qual_Weights, Rank_Weights,
-                  Education_Score, Certification_Score, K3_Score, Thresholds
-    Output:
-      DataFrame employees + seluruh kolom turunan (skor komponen, gate, kuadran)
-    """
+    """Hitung seluruh skor, gate keputusan, dan kuadran dari data mentah."""
     df = employees.copy()
 
     quant_w = dict(zip(refs["Quant_Weights"]["Parameter"], refs["Quant_Weights"]["Value"]))
@@ -57,13 +45,13 @@ def compute_all(employees: pd.DataFrame, refs: dict) -> pd.DataFrame:
     k3_map = dict(zip(refs["K3_Score"]["Kategori"], refs["K3_Score"]["Nilai"]))
     thr = dict(zip(refs["Thresholds"]["Parameter"], refs["Thresholds"]["Value"]))
 
-    # ---------- Turunan dasar ----------
+    # Turunan dasar
     nk_cols = [c for c in df.columns if c.startswith("NK_")]
     df["NK_Mean"] = df[nk_cols].mean(axis=1).round(2)
     df["MDG_Tahun"] = df["Tanggal_Grade"].apply(years_since).round(2)
-    df["MDP_Tahun"] = df["MDG_Tahun"]  # satu-satunya tanggal acuan yang tersedia
+    df["MDP_Tahun"] = df["MDG_Tahun"]
 
-    # ---------- Skor komponen Quantitative ----------
+    # Quantitative
     nk_mean_pop, nk_std_pop = df["NK_Mean"].mean(), df["NK_Mean"].std()
     mdp_mean_pop, mdp_std_pop = df["MDP_Tahun"].mean(), df["MDP_Tahun"].std()
 
@@ -79,7 +67,7 @@ def compute_all(employees: pd.DataFrame, refs: dict) -> pd.DataFrame:
         + df["Skor_Sertifikasi"] * quant_w.get("Sertifikasi", 0)
     ).round(1)
 
-    # ---------- Skor komponen Qualitative ----------
+    # Qualitative
     df["Skor_K3"] = df["K3"].map(k3_map).fillna(0)
     df["Qualitative_Score"] = (
         df["Exposure"] * qual_w.get("Exposure", 0)
@@ -87,26 +75,28 @@ def compute_all(employees: pd.DataFrame, refs: dict) -> pd.DataFrame:
         + df["Skor_K3"] * qual_w.get("K3", 0)
     ).round(1)
 
-    # ---------- QScore final (bobot per pangkat) ----------
+    # QScore final
     def qscore_row(row):
         w = rank_w.loc[row["Pangkat"]] if row["Pangkat"] in rank_w.index else None
         if w is None:
             return np.nan
-        return round(row["Quantitative_Score"] * w["Quantitative"] + row["Qualitative_Score"] * w["Qualitative"], 1)
+        return round(
+            row["Quantitative_Score"] * w["Quantitative"]
+            + row["Qualitative_Score"] * w["Qualitative"],
+            1,
+        )
 
     df["QScore"] = df.apply(qscore_row, axis=1)
 
-    # ---------- Gate 1: Syarat Administrasi ----------
+    # Gate Administrasi
     min_nk = thr.get("Minimum NK", 3.0)
     min_sisa = thr.get("Minimum Remaining Service (tahun)", 0.5)
     mdg_threshold = thr.get("MDG Threshold (tahun)", 2)
 
     def pendidikan_ok(row):
-        if "Officer" not in row["Pendidikan"] and "Non-Officer" not in row["Pendidikan"]:
-            return True  # S2/S3 dianggap selalu lolos syarat minimal
-        if "Non-Officer" in row["Pendidikan"]:
-            return True  # sudah minimal D3
-        return True  # S1 Officer juga lolos (>= S1)
+        # Mempertahankan aturan pada prototype: kategori pendidikan yang tersedia
+        # dianggap memenuhi minimum sesuai kategori jabatan.
+        return True
 
     df["Chk_NK"] = df["NK_Mean"] >= min_nk
     df["Chk_SisaDinas"] = df["Remaining_Service"] > min_sisa
@@ -122,7 +112,7 @@ def compute_all(employees: pd.DataFrame, refs: dict) -> pd.DataFrame:
     ]
     df["Lolos_Administrasi"] = df[admin_checks].all(axis=1)
 
-    # ---------- Gate 2: Kriteria KPP (passing grade = mean QScore per pangkat, dari populasi lolos administrasi) ----------
+    # Gate KPP — passing grade per pangkat dari populasi yang lolos administrasi
     lolos_admin_df = df[df["Lolos_Administrasi"]]
     passing_grade_map = lolos_admin_df.groupby("Pangkat")["QScore"].mean().round(1).to_dict()
     quant_pg_map = lolos_admin_df.groupby("Pangkat")["Quantitative_Score"].mean().round(1).to_dict()
@@ -140,49 +130,52 @@ def compute_all(employees: pd.DataFrame, refs: dict) -> pd.DataFrame:
     kpp_checks = ["Chk_Kinerja", "Chk_Quant_PG", "Chk_Qual_PG", "Chk_QScore_PG"]
     df["Lolos_KPP"] = df["Lolos_Administrasi"] & df[kpp_checks].all(axis=1)
 
-    # ---------- Gate 3: Grade Senior / MDG ----------
+    # Gate Grade Senior / MDG
     df["Is_Senior"] = df["Sublevel"] == "Senior"
     df["Chk_MDG_Terpenuhi"] = df["MDG_Tahun"] >= mdg_threshold
 
     def routing(row):
         if not row["Lolos_KPP"]:
             return "General Talent"
-        if row["Is_Senior"]:
-            return "Proses KPP"
-        if row["Chk_MDG_Terpenuhi"]:
+        if row["Is_Senior"] or row["Chk_MDG_Terpenuhi"]:
             return "Proses KPP"
         return "General Talent"
 
     df["Status_Akhir"] = df.apply(routing, axis=1)
     df["Masuk_Proses_KPP"] = df["Status_Akhir"] == "Proses KPP"
 
-    # ---------- Kuadran (hanya untuk populasi Proses KPP, mean dihitung per pangkat) ----------
+    # -------------------------------------------------------------------------
+    # KUADRAN
+    # Mengikuti definisi yang diminta: mean dihitung dari SELURUH populasi
+    # Proses KPP (bukan per pangkat dan bukan berubah mengikuti filter UI).
+    # -------------------------------------------------------------------------
     kpp_pop = df[df["Masuk_Proses_KPP"]]
-    mean_q_map = kpp_pop.groupby("Pangkat")["QScore"].mean().to_dict()
-    mean_m_map = kpp_pop.groupby("Pangkat")["MDP_Tahun"].mean().to_dict()
+    mean_q_kpp = kpp_pop["QScore"].mean()
+    mean_mdp_kpp = kpp_pop["MDP_Tahun"].mean()
 
     def kuadran_row(row):
         if not row["Masuk_Proses_KPP"]:
             return None
-        mq = mean_q_map.get(row["Pangkat"], row["QScore"])
-        mm = mean_m_map.get(row["Pangkat"], row["MDP_Tahun"])
-        if row["QScore"] > mq and row["MDP_Tahun"] > mm:
+        if row["QScore"] > mean_q_kpp and row["MDP_Tahun"] > mean_mdp_kpp:
             return "I"
-        if row["QScore"] > mq and row["MDP_Tahun"] <= mm:
+        if row["QScore"] > mean_q_kpp and row["MDP_Tahun"] <= mean_mdp_kpp:
             return "II"
-        if row["QScore"] <= mq and row["MDP_Tahun"] > mm:
+        if row["QScore"] <= mean_q_kpp and row["MDP_Tahun"] > mean_mdp_kpp:
             return "III"
         return "IV"
 
-    df["Mean_QScore_Pangkat_KPP"] = df["Pangkat"].map(mean_q_map).round(1)
-    df["Mean_MDP_Pangkat_KPP"] = df["Pangkat"].map(mean_m_map).round(1)
+    df["Mean_QScore_Populasi_KPP"] = round(mean_q_kpp, 1) if len(kpp_pop) else np.nan
+    df["Mean_MDP_Populasi_KPP"] = round(mean_mdp_kpp, 1) if len(kpp_pop) else np.nan
+    # Aliases retained for compatibility with older views.
+    df["Mean_QScore_Pangkat_KPP"] = df["Mean_QScore_Populasi_KPP"]
+    df["Mean_MDP_Pangkat_KPP"] = df["Mean_MDP_Populasi_KPP"]
     df["Kuadran"] = df.apply(kuadran_row, axis=1)
 
     return df
 
 
 ADMIN_CHECK_LABELS = {
-    "Chk_NK": "Nilai Kinerja rata-rata >= 3.00",
+    "Chk_NK": "Nilai Kinerja rata-rata ≥ 3,00",
     "Chk_SisaDinas": "Sisa masa dinas > 6 bulan",
     "Chk_Pendidikan": "Pendidikan minimal sesuai kategori jabatan",
     "Chk_Rekomendasi": "Direkomendasikan oleh Satuan Kerja",
@@ -192,8 +185,8 @@ ADMIN_CHECK_LABELS = {
 }
 
 KPP_CHECK_LABELS = {
-    "Chk_Kinerja": "Kinerja: NK rata-rata >= 3.00",
-    "Chk_Quant_PG": "Quantitative Score >= Passing Grade",
-    "Chk_Qual_PG": "Qualitative Score >= Passing Grade",
-    "Chk_QScore_PG": "QScore >= Passing Grade (Mean QScore per pangkat)",
+    "Chk_Kinerja": "Kinerja: NK rata-rata ≥ 3,00",
+    "Chk_Quant_PG": "Quantitative Score ≥ Passing Grade",
+    "Chk_Qual_PG": "Qualitative Score ≥ Passing Grade",
+    "Chk_QScore_PG": "QScore ≥ Passing Grade (mean QScore per pangkat)",
 }
