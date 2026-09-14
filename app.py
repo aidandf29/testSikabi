@@ -176,7 +176,7 @@ STATUS_OPTS = ["Proses KPP", "General Talent"]
 # Header: logo aplikasi + identitas produk + utility actions.
 # Gunakan top alignment + spacer kecil pada action area agar tombol tidak ter-clipping
 # oleh container Streamlit.
-with st.container(border=True):
+with st.container(border=False):
     head_logo, head_text, head_actions = st.columns([1.15, 3.0, 1.85], vertical_alignment="top")
 
     with head_logo:
